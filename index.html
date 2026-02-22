@@ -1,90 +1,139 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8">
-  <title>Mini Arknights Web</title>
-  <style>
-    body { background:#111; color:white; text-align:center; font-family:sans-serif; }
-    canvas { background:#222; margin-top:10px; border:2px solid #555; }
-    button { padding:8px 16px; font-size:16px; margin:10px; cursor:pointer; }
-  </style>
+<meta charset="UTF-8">
+<title>Mini Arknights Web v2</title>
+<style>
+  body { background:#0f1115; color:#e6e6e6; font-family:system-ui; text-align:center; }
+  canvas { background:#1a1d24; border:2px solid #444; }
+  .bar { margin:8px; }
+  .ops button{ margin:4px; padding:6px 10px; cursor:pointer; }
+</style>
 </head>
 <body>
-  <h1>Mini Arknights Web (Demo)</h1>
-  <p>Bấm vào ô vuông để đặt Operator</p>
-  <button onclick="startGame()">Start</button>
-  <canvas id="game" width="480" height="480"></canvas>
+<h2>Mini Arknights Web – v2 (Path + Block)</h2>
+<div class="bar">
+  HP Nhà: <b id="hp">10</b> | Vàng: <b id="gold">10</b>
+</div>
+<div class="ops">
+  Operator:
+  <button onclick="selectOp('sniper')">Sniper</button>
+  <button onclick="selectOp('guard')">Guard (Block)</button>
+  <button onclick="selectOp('defender')">Defender (Block 2)</button>
+  <button onclick="start()">Start</button>
+</div>
+<canvas id="game" width="480" height="360"></canvas>
 
-  <script>
-    const canvas = document.getElementById("game");
-    const ctx = canvas.getContext("2d");
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-    const gridSize = 6;
-    const tile = 80;
+const tile=60, rows=6, cols=8;
 
-    let operators = [];
-    let enemies = [];
-    let hp = 10;
-    let gold = 10;
+// Path cố định (đường đi quái)
+const PATH = [
+  {x:0,y:2},{x:1,y:2},{x:2,y:2},{x:3,y:2},
+  {x:3,y:3},{x:4,y:3},{x:5,y:3},{x:6,y:3},{x:7,y:3}
+];
 
-    function drawGrid() {
-      for (let x = 0; x < gridSize; x++) {
-        for (let y = 0; y < gridSize; y++) {
-          ctx.strokeStyle = "#555";
-          ctx.strokeRect(x * tile, y * tile, tile, tile);
+let selected='sniper';
+let ops=[], enemies=[];
+let hp=10, gold=10, started=false;
+
+const OP_DEF = {
+  sniper: {color:'#4cc9f0', dmg:2, cd:20, block:0, cost:3, range:3},
+  guard: {color:'#ffb703', dmg:1, cd:30, block:1, cost:3, range:1},
+  defender: {color:'#90dbf4', dmg:1, cd:40, block:2, cost:4, range:1}
+};
+
+function selectOp(t){ selected=t; }
+
+canvas.onclick = (e)=>{
+  if(!started) return;
+  const r=canvas.getBoundingClientRect();
+  const x=Math.floor((e.clientX-r.left)/tile);
+  const y=Math.floor((e.clientY-r.top)/tile);
+  const def=OP_DEF[selected];
+  if(gold>=def.cost){
+    ops.push({x,y,type:selected,cd:0,block:def.block});
+    gold-=def.cost; ui();
+  }
+};
+
+function ui(){
+  hpEl.textContent=hp; goldEl.textContent=gold;
+}
+const hpEl=document.getElementById("hp");
+const goldEl=document.getElementById("gold");
+
+function spawn(){
+  enemies.push({pi:0, x:PATH[0].x, y:PATH[0].y, hp:5, speed:0.02, blocked:false});
+}
+
+function drawGrid(){
+  for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
+    ctx.strokeStyle="#333"; ctx.strokeRect(x*tile,y*tile,tile,tile);
+  }
+  PATH.forEach(p=>{
+    ctx.fillStyle="#222"; ctx.fillRect(p.x*tile,p.y*tile,tile,tile);
+  });
+}
+
+function update(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawGrid();
+
+  // operators
+  ops.forEach(o=>{
+    const d=OP_DEF[o.type];
+    ctx.fillStyle=d.color;
+    ctx.fillRect(o.x*tile+10,o.y*tile+10,40,40);
+    o.cd--;
+    if(o.cd<=0){
+      enemies.forEach(en=>{
+        const dx=Math.abs(en.x-o.x);
+        const dy=Math.abs(en.y-o.y);
+        if(dx+dy<=d.range){
+          en.hp-=d.dmg; o.cd=d.cd;
         }
-      }
+      });
     }
+  });
 
-    canvas.addEventListener("click", (e) => {
-      const rect = canvas.getBoundingClientRect();
-      const x = Math.floor((e.clientX - rect.left) / tile);
-      const y = Math.floor((e.clientY - rect.top) / tile);
-
-      operators.push({ x, y, cd: 0 });
+  // enemies
+  enemies.forEach(en=>{
+    // kiểm tra block
+    const blockers = ops.filter(o=>{
+      const d=OP_DEF[o.type];
+      return d.block>0 && o.x===en.x && o.y===en.y;
     });
+    if(blockers.length){
+      en.blocked=true;
+    }else en.blocked=false;
 
-    function spawnEnemy() {
-      enemies.push({ x: 0, y: Math.floor(Math.random() * gridSize), hp: 3 });
+    if(!en.blocked){
+      en.pi += en.speed;
+      const p = PATH[Math.floor(en.pi)];
+      if(p){ en.x=p.x; en.y=p.y; }
+      else { hp--; en.hp=0; ui(); }
     }
 
-    function update() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle="#ff3b3b";
+    ctx.fillRect(en.x*tile+15,en.y*tile+15,30,30);
+  });
 
-      drawGrid();
+  enemies=enemies.filter(e=>e.hp>0);
 
-      // Operators
-      operators.forEach(op => {
-        ctx.fillStyle = "cyan";
-        ctx.fillRect(op.x * tile + 10, op.y * tile + 10, 60, 60);
+  if(hp<=0){ alert("Thua rồi!"); started=false; return; }
+  requestAnimationFrame(update);
+}
 
-        op.cd--;
-        if (op.cd <= 0) {
-          enemies.forEach(en => {
-            if (en.y === op.y && en.x > op.x) {
-              en.hp--;
-              op.cd = 30;
-            }
-          });
-        }
-      });
-
-      // Enemies
-      enemies.forEach(en => {
-        en.x += 0.01;
-        ctx.fillStyle = "red";
-        ctx.fillRect(en.x * tile + 20, en.y * tile + 20, 40, 40);
-      });
-
-      enemies = enemies.filter(en => en.hp > 0 && en.x < gridSize);
-
-      requestAnimationFrame(update);
-    }
-
-    function startGame() {
-      setInterval(spawnEnemy, 1500);
-      update();
-    }
-  </script>
+function start(){
+  if(started) return;
+  started=true;
+  setInterval(spawn,1500);
+  update();
+}
+</script>
 </body>
 </html>
