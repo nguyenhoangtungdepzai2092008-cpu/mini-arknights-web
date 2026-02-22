@@ -1,185 +1,190 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-<meta charset="UTF-8" />
-<title>Mini Arknights Web</title>
-<style>
-  body{
-    margin:0;
-    background:#111;
-    color:#eee;
-    font-family: Arial, sans-serif;
-    display:flex;
-    justify-content:center;
-  }
-  #ui{
-    width:900px;
-    padding:16px;
-  }
-  h1{ text-align:center; margin:8px 0 12px; }
-  #game{
-    display:grid;
-    grid-template-columns: repeat(10, 56px);
-    grid-template-rows: repeat(6, 56px);
-    gap:4px;
-    background:#222;
-    padding:8px;
-    border:2px solid #444;
-    position:relative;
-  }
-  .cell{
-    width:56px;height:56px;
-    background:#1a1a1a;
-    border:1px solid #333;
-    position:relative;
-    cursor:pointer;
-  }
-  .road{ background:#2b2b2b; }
-  .operator{
-    width:40px;height:40px;
-    background:#00e5ff;
-    border-radius:6px;
-    position:absolute;
-    top:8px; left:8px;
-  }
-  .enemy{
-    width:22px;height:22px;
-    background:#ff3b3b;
-    border-radius:50%;
-    position:absolute;
-    transition: all 0.25s linear;
-  }
-  .bullet{
-    width:6px;height:6px;
-    background:#ffd54f;
-    border-radius:50%;
-    position:absolute;
-    pointer-events:none;
-  }
-  #panel{
-    margin-top:10px;
-    display:flex;
-    gap:8px;
-    align-items:center;
-  }
-  button{
-    padding:6px 10px;
-    cursor:pointer;
-  }
-</style>
+  <meta charset="UTF-8" />
+  <title>Mini Arknights Web</title>
+  <style>
+    body {
+      background: #0f1115;
+      color: #e6e6e6;
+      font-family: system-ui, Arial, sans-serif;
+      text-align: center;
+    }
+    h1 { margin: 12px 0; }
+
+    #game {
+      margin: 0 auto;
+      width: 360px;
+      display: grid;
+      grid-template-columns: repeat(6, 60px);
+      grid-template-rows: repeat(6, 60px);
+      gap: 4px;
+      background: #222;
+      padding: 8px;
+      border-radius: 8px;
+    }
+
+    .cell {
+      width: 60px;
+      height: 60px;
+      background: #1a1d24;
+      border: 1px solid #444;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .operator {
+      background-image: url("assets/operator.png");
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+    }
+
+    .enemy {
+      background-image: url("assets/enemy.png");
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+      animation: walk 0.4s infinite alternate;
+    }
+
+    @keyframes walk {
+      from { transform: translateY(0); }
+      to { transform: translateY(-2px); }
+    }
+
+    #ui {
+      margin-top: 10px;
+    }
+
+    button {
+      padding: 8px 14px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .road {
+      background: #2a2f3a;
+    }
+
+    .bullet {
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      background: #00e5ff;
+      border-radius: 50%;
+      pointer-events: none;
+    }
+  </style>
 </head>
 <body>
-<div id="ui">
   <h1>Mini Arknights Web</h1>
+  <div>Click ô để đặt Operator • Quái đi theo đường • Operator tự bắn</div>
+
   <div id="game"></div>
-  <div id="panel">
-    <button id="start">Start Wave</button>
-    <span>Click ô trống để đặt Operator (màu xanh)</span>
+
+  <div id="ui">
+    <button id="startBtn">Start</button>
   </div>
-</div>
 
-<script>
-const W = 10, H = 6;
-const game = document.getElementById("game");
-const cells = [];
-const enemies = [];
-const operators = [];
+  <script>
+    const SIZE = 6;
+    const game = document.getElementById("game");
+    const startBtn = document.getElementById("startBtn");
 
-// đường đi uốn khúc (giống lane trong Arknights)
-const path = [
-  [0,2],[1,2],[2,2],[3,2],[4,2],[5,2],[6,2],[7,2],
-  [7,3],[7,4],
-  [6,4],[5,4],[4,4],[3,4],[2,4],[1,4],
-  [1,3],[1,2],[1,1],[2,1],[3,1],[4,1],[5,1],[6,1],[7,1],[8,1],[9,1]
-];
+    const grid = [];
+    const enemies = [];
+    const operators = [];
 
-function idx(x,y){ return y*W + x; }
+    // đường đi của quái
+    const path = [
+      [0, 2],[1, 2],[2, 2],[3, 2],[4, 2],[5, 2]
+    ];
 
-// tạo map
-for(let y=0;y<H;y++){
-  for(let x=0;x<W;x++){
-    const c = document.createElement("div");
-    c.className = "cell";
-    c.onclick = ()=> placeOperator(x,y,c);
-    game.appendChild(c);
-    cells.push(c);
-  }
-}
+    function createGrid() {
+      game.innerHTML = "";
+      for (let y = 0; y < SIZE; y++) {
+        grid[y] = [];
+        for (let x = 0; x < SIZE; x++) {
+          const cell = document.createElement("div");
+          cell.className = "cell";
 
-// tô đường đi
-path.forEach(([x,y])=>{
-  cells[idx(x,y)].classList.add("road");
-});
+          if (path.some(p => p[0] === x && p[1] === y)) {
+            cell.classList.add("road");
+          }
 
-function placeOperator(x,y,cell){
-  if(cell.querySelector(".operator")) return;
-  if(cell.classList.contains("road")) return;
-
-  const op = document.createElement("div");
-  op.className = "operator";
-  cell.appendChild(op);
-  operators.push({x,y,el:op});
-}
-
-// spawn quái liên tục
-function spawnEnemy(){
-  const e = document.createElement("div");
-  e.className = "enemy";
-  game.appendChild(e);
-  enemies.push({el:e, step:0, hp:3});
-}
-
-function moveEnemies(){
-  enemies.forEach((enemy, i)=>{
-    if(enemy.step >= path.length){
-      enemy.el.remove();
-      enemies.splice(i,1);
-      return;
-    }
-    const [x,y] = path[enemy.step];
-    enemy.el.style.left = (x*60 + 18) + "px";
-    enemy.el.style.top  = (y*60 + 18) + "px";
-    enemy.step++;
-  });
-}
-
-function shoot(){
-  operators.forEach(op=>{
-    enemies.forEach((enemy, i)=>{
-      const ex = path[Math.max(0, enemy.step-1)]?.[0] ?? 0;
-      const ey = path[Math.max(0, enemy.step-1)]?.[1] ?? 0;
-      const dx = ex - op.x;
-      const dy = ey - op.y;
-      const dist = Math.sqrt(dx*dx + dy*dy);
-      if(dist <= 3){
-        const b = document.createElement("div");
-        b.className = "bullet";
-        b.style.left = (op.x*60 + 28) + "px";
-        b.style.top  = (op.y*60 + 28) + "px";
-        game.appendChild(b);
-        setTimeout(()=>b.remove(),200);
-
-        enemy.hp--;
-        if(enemy.hp <= 0){
-          enemy.el.remove();
-          enemies.splice(i,1);
+          cell.onclick = () => placeOperator(x, y);
+          game.appendChild(cell);
+          grid[y][x] = cell;
         }
       }
-    });
-  });
-}
+    }
 
-document.getElementById("start").onclick = ()=>{
-  let count = 0;
-  const spawner = setInterval(()=>{
-    spawnEnemy();
-    count++;
-    if(count > 20) clearInterval(spawner);
-  }, 400);
-};
+    function placeOperator(x, y) {
+      const cell = grid[y][x];
+      if (cell.classList.contains("road")) return;
+      if (cell.classList.contains("operator")) return;
 
-setInterval(moveEnemies, 300);
-setInterval(shoot, 500);
-</script>
+      cell.classList.add("operator");
+      operators.push({ x, y, cell });
+    }
+
+    function spawnEnemy() {
+      const enemy = { i: 0, hp: 5 };
+      enemies.push(enemy);
+      renderEnemies();
+    }
+
+    function renderEnemies() {
+      document.querySelectorAll(".enemy").forEach(e => e.remove());
+      enemies.forEach(enemy => {
+        const [x, y] = path[enemy.i];
+        const cell = grid[y][x];
+        const eDiv = document.createElement("div");
+        eDiv.className = "enemy";
+        eDiv.style.width = "100%";
+        eDiv.style.height = "100%";
+        cell.appendChild(eDiv);
+        enemy.el = eDiv;
+      });
+    }
+
+    function moveEnemies() {
+      enemies.forEach((enemy, idx) => {
+        enemy.i++;
+        if (enemy.i >= path.length) {
+          enemies.splice(idx, 1);
+        }
+      });
+      renderEnemies();
+    }
+
+    function shoot() {
+      operators.forEach(op => {
+        enemies.forEach((enemy, ei) => {
+          const [ex, ey] = path[enemy.i];
+          const dist = Math.abs(op.x - ex) + Math.abs(op.y - ey);
+          if (dist <= 2) {
+            enemy.hp--;
+            if (enemy.hp <= 0) {
+              enemies.splice(ei, 1);
+            }
+          }
+        });
+      });
+      renderEnemies();
+    }
+
+    startBtn.onclick = () => {
+      spawnEnemy();
+      setInterval(moveEnemies, 800);
+      setInterval(shoot, 500);
+      setInterval(spawnEnemy, 3000);
+    };
+
+    createGrid();
+  </script>
 </body>
 </html>
